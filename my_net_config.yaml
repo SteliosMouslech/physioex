@@ -1,0 +1,20 @@
+model: physioex.train.networks.ageprednet:AgePredNet
+model_kwargs:
+    sequence_length: 1
+    input_time_length: 3000
+    sfreq: 100
+    in_channels: 1
+    loss: physioex.train.networks.utils.loss:RegressionLoss
+    n_classes: 1
+    learning_rate: 0.001
+    loss_kwargs: {}
+preprocessing: raw
+target_transform: null
+n_classes: 1
+sequence_length: 1
+num_validations: 2
+model_task: age
+#Callback deets
+monitor: val_loss
+mode: min
+# check the train documentaion for more details

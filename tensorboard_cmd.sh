@@ -1,0 +1,1 @@
+tensorboard --logdir "./checkpoints/simpleCNN_S1_new_reader/lightning_logs/"
