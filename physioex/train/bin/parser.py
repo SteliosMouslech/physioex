@@ -35,7 +35,6 @@ def deep_update(dict1, dict2):
 def parse_model(parser: dict) -> dict:
 
     model = parser["model"]
-
     default_config = network_config["default"].copy()
 
     if model.endswith(".yaml"):
@@ -54,7 +53,7 @@ def parse_model(parser: dict) -> dict:
     config = default_config
 
     config["model_kwargs"]["in_channels"] = len(parser["selected_channels"])
-    config["model_kwargs"]["sequence_length"] = parser["sequence_length"]
+    #config["model_kwargs"]["sequence_length"] = parser["sequence_length"] # NOT SURE WHY IS THIS OVERWRITTEN?
 
     module, class_name = config["model"].split(":")
     config["model"] = getattr(importlib.import_module(module), class_name)
@@ -69,7 +68,6 @@ def parse_model(parser: dict) -> dict:
         )
 
     deep_update(parser, config)
-
     return parser
 
 

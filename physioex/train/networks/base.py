@@ -154,9 +154,10 @@ class SleepModule(pl.LightningModule):
             loss = self.loss(embeddings, outputs, targets)
 
             self.log(f"{log}_loss", loss, prog_bar=True, sync_dist=True)
-            self.log(f"{log}_r2", self.r2(outputs, targets), prog_bar=True, sync_dist=True)
             self.log(f"{log}_mae", self.mae(outputs, targets), prog_bar=True, sync_dist=True)
             self.log(f"{log}_mse", self.mse(outputs, targets), prog_bar=True, sync_dist=True)
+            if outputs.numel() > 1:
+                self.log(f"{log}_r2", self.r2(outputs, targets), prog_bar=True, sync_dist=True)
 
         if log_metrics and self.n_classes > 1:
             self.log(f"{log}_ck", self.ck(outputs, targets), sync_dist=True)
@@ -181,9 +182,9 @@ class SleepModule(pl.LightningModule):
     def validation_step(self, batch, batch_idx):
         # Logica di validazione
         inputs, targets, subjects, dataset_idx = batch
-        
+
         embeddings , outputs = voting_strategy(self, inputs, self.L)
-        
+
         return self.compute_loss(embeddings, outputs, targets, "val")
 
     def test_step(self, batch, batch_idx):

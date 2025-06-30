@@ -25,7 +25,6 @@ def train_script():
         "data_folder": parser["data_folder"],
         "num_workers": parser["num_workers"],
     }
-
     train_kwargs = {
         "datasets": parser["datasets"],
         "datamodule_kwargs": datamodule_kwargs,

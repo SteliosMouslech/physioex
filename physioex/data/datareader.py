@@ -212,62 +212,97 @@ class AgeMemmapReader(MemmapReader):
         channels_index: List[int],
         offset: int,
         ):
+        
+        if sequence_length == -1:
+            self.VALIDATE_WHOLE_NIGHT = True
+        else:
+            self.VALIDATE_WHOLE_NIGHT = False
 
-        self.preprocessing = preprocessing
+        if self.VALIDATE_WHOLE_NIGHT == False:
+            self.preprocessing = preprocessing
 
-        self.data_path = os.path.join(data_folder, dataset, preprocessing)
-        self.labels_path = os.path.join(data_folder, dataset, "labels")
+            self.data_path = os.path.join(data_folder, dataset, preprocessing)
+            self.labels_path = os.path.join(data_folder, dataset, "labels")
 
-        self.L = sequence_length
-        self.channels_index = channels_index
-        self.offset = offset
+            self.L = sequence_length
+            self.channels_index = channels_index
+            self.offset = offset
 
-        # get the scaling parameters
-        scaling = np.load(os.path.join(self.data_path, "scaling.npz"))
+            # get the scaling parameters
+            scaling = np.load(os.path.join(self.data_path, "scaling.npz"))
 
-        self.input_shape = list(scaling["mean"].shape)
+            self.input_shape = list(scaling["mean"].shape)
 
-        self.mean = torch.tensor(scaling["mean"][channels_index]).float()
-        self.std = torch.tensor(scaling["std"][channels_index]).float()
+            self.mean = torch.tensor(scaling["mean"][channels_index]).float()
+            self.std = torch.tensor(scaling["std"][channels_index]).float()
 
-        # read the table
-        self.table = pd.read_csv(os.path.join(data_folder, dataset, "table.csv"))
+            # read the table
+            self.table = pd.read_csv(os.path.join(data_folder, dataset, "table.csv"))
 
-        ## Modify table to drop the wrong age 
-        self.table = self.clean_and_update_df(self.table)
+            ## Modify table to drop the wrong age 
+            self.table = self.clean_and_update_df(self.table)
 
-        num_windows = self.table["num_windows"].values
-        subjects_id = self.table["subject_id"].values
+            num_windows = self.table["num_windows"].values
+            subjects_id = self.table["subject_id"].values
 
-        if self.L > np.max(num_windows):
-            logger.warning(
-                f"Sequence length {self.L} is greater than the max number of windows {np.max(num_windows)} for dataset {dataset}."
-            )
+            if self.L > np.max(num_windows):
+                logger.warning(
+                    f"Sequence length {self.L} is greater than the max number of windows {np.max(num_windows)} for dataset {dataset}."
+                )
 
-        self.len = num_windows - self.L
+            self.len = num_windows - self.L
 
-        neg = np.where(self.len < 0)[0]
-        if len(neg) > 0:
-            self.len[neg] = 0
+            neg = np.where(self.len < 0)[0]
+            if len(neg) > 0:
+                self.len[neg] = 0
 
-        self.len = int(np.sum(self.len + 1))
+            self.len = int(np.sum(self.len + 1))
 
-        self.subject_idx, self.relative_idx, self.windows_index = build_index(
-            num_windows, subjects_id, self.L
-        )
+            self.subject_idx, self.relative_idx, self.windows_index = build_index(
+                num_windows, subjects_id, self.L)
+        else:
+            super().__init__(
+                        data_folder = data_folder,
+                        dataset = dataset,
+                        preprocessing = preprocessing,
+                        sequence_length = 30 * 2 * 60 * 24, # 24 hours,  
+                        channels_index = channels_index,
+                        offset = offset            
+                    )
+        
 
     def __getitem__(self, idx):
         idx = idx - self.offset
         subject_id = self.subject_idx[idx]
+
         age = self.table.loc[
             self.table["subject_id"] == subject_id, "nsrr_age"
         ].values.astype(float)[0]
 
         y = torch.tensor([age], dtype=torch.float32)
+        if self.VALIDATE_WHOLE_NIGHT == False :
+            X = self.get_signal(idx)
+        else: 
+            X = self.get_whole_night_signal(idx)
 
-        X = self.get_signal(idx)
+        return X, y, subject_id
 
-        return X, y
+
+    def get_whole_night_signal(self,idx):
+        idx = idx - self.offset
+
+        subject_id = self.subject_idx[idx]
+        num_windows = self.windows_index[subject_id]
+
+        input_shape = tuple([num_windows] + self.input_shape)
+
+        data_path = os.path.join(self.data_path, str(subject_id) + ".npy")
+
+        X = np.memmap(data_path, dtype="float32", mode="r", shape=input_shape)
+        X = X[:, self.channels_index]
+        X = (torch.tensor(X).float() - self.mean) / self.std
+
+        return X
 
     def clean_and_update_df(self,df):
         "Reads the table of the dataset and removes entries with NaN age"
